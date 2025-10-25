@@ -8,7 +8,7 @@
 
 (view http/errors)
 
-(fn response/html [status-code status content-type content]
+(fn response [status-code status content-type content]
   (.. "HTTP/1.1 " status-code " " status "\r\nContent-Type: " content-type "; charset=utf-8\r
 "
       "Content-Length: " (length content) "\r\n" "\r\n" content))
@@ -18,7 +18,7 @@
   (local (ok err) (pcall #(with-open [file (io.open file-path :r)]
                             (set content (file:read :*all)))))
   (case ok
-    true (response/html 200 :OK content-type content)
+    true (response 200 :OK content-type content)
     false (do
             (print err)
             (http/errors.not-found))))
@@ -97,10 +97,15 @@
         url (split path "/")
         routes (. r.routes method)]
     (view :handle-request method path url)
-    (let [params {}]
-      (or (let [handler (walk-url routes url params)]
-            (and handler (handler req params)))
-          (http/errors.not-found)))))
+    (if (and (= method :GET) (string.match path r.static-url))
+        (do
+          (view "status~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+                r path)
+          (response/static r path))
+        (let [params {}]
+          (or (let [handler (walk-url routes url params)]
+                (and handler (handler req params)))
+              (http/errors.not-found))))))
 
 {:routes {}
  :static-url :^/static/
@@ -108,4 +113,4 @@
  : register
  : handle-request
  : response/static
- : response/html}
+ : response}
