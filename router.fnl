@@ -1,17 +1,20 @@
-; FIXME: this
-(local http/errors (require :por.templates.not-found))
+(local http/errors (require :por.templates))
 
 (fn view [...]
   (let [args [...]]
     (each [i t (ipairs args)]
       (print "value t:" i " " ((. (require :fennel) :view) t)))))
 
-(view http/errors)
-
 (fn response [status-code status content-type content]
   (.. "HTTP/1.1 " status-code " " status "\r\nContent-Type: " content-type "; charset=utf-8\r
 "
       "Content-Length: " (length content) "\r\n" "\r\n" content))
+
+(fn response/html [status-code status content]
+  (response status-code status :text/html content))
+
+(fn response/template [content]
+  (response/html 200 :OK content))
 
 (fn content-or-error [file-path content-type]
   (var content "")
@@ -48,7 +51,6 @@
 
 (fn walk-url [routes url path-params]
   (let [[path & rest] url]
-    (view :walk-url (. routes path) rest)
     (case [(. routes path) rest]
       [route [nil]] (. route :handler)
       [route & [rest]] (walk-url route rest path-params)
@@ -62,7 +64,6 @@
                         (when (= (length m) (length wildcards))
                           (collect [i card (ipairs wildcards) &into path-params]
                             (values (card:sub 2 -2) (. m i)))
-                          (view :path-params path-params r)
                           (walk-url routes [r (table.unpack rest)] path-params)))))))))
 
 (fn build-route [r url handler]
@@ -91,26 +92,34 @@
   (let [url (split path "/")]
     (build-route (. r.routes method) url handler)))
 
+(fn try-read-body [body]
+  (when body
+    (let [items (split body "&")]
+      (collect [_ item (ipairs items)]
+        (let [[k v] (split item "=")] (values k v))))))
+
 (fn handle-request [r req]
-  (let [[request-line & _] req
-        [method path] (split request-line)
+  (print :resolving)
+  (let [[method path] [(. req :method) (. req :path)]
         url (split path "/")
         routes (. r.routes method)]
-    (view :handle-request method path url)
+    (set req.form (try-read-body (. req :body)))
     (if (and (= method :GET) (string.match path r.static-url))
-        (do
-          (view "status~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-                r path)
-          (response/static r path))
-        (let [params {}]
-          (or (let [handler (walk-url routes url params)]
-                (and handler (handler req params)))
-              (http/errors.not-found))))))
+        (response/static r path)
+        (if routes (let [params {}]
+                     (or (let [handler (walk-url routes url params)]
+                           (and handler (handler req params)))
+                         (http/errors.not-found)))
+            (http/errors.method-not-allowed)))))
 
 {:routes {}
  :static-url :^/static/
  :static-path :./static/
  : register
  : handle-request
+ : response
  : response/static
- : response}
+ : response/html
+ : response/template
+ : view
+ : split}

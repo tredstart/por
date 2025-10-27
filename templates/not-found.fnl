@@ -5,4 +5,4 @@ Content-Length: 9\r
 \r
 Not Found")
 
-{: not-found}
+not-found
