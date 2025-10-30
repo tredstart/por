@@ -19,17 +19,18 @@
                   (accumulate [result "" _ clause (ipairs clauses)]
                     (.. result clause))) ";")
         result []]
-    (print :select (self.connection:exec sql
-                                         (fn [_ cols v n]
-                                           (table.insert result
-                                                         (faccumulate [t {} i 1 cols]
-                                                           (let [new-t t]
-                                                             (set (. t (. n i))
-                                                                  (. v i))
-                                                             new-t)))
-                                           0)))
-    (print :before-result ((. (require :fennel) :view) result))
-    result))
+    (print "SELKECT~~~~~~~~" sql)
+    [result
+     (case (self.connection:exec sql (fn [_ cols v n]
+                                       (table.insert result
+                                                     (faccumulate [t {} i 1 cols]
+                                                       (let [new-t t]
+                                                         (set (. t (. n i))
+                                                              (. v i))
+                                                         new-t)))
+                                       0))
+       0 nil
+       err {:errcode err :errmsg (self.connection:errmsg)})]))
 
 (fn m.join [t condition]
   (.. " JOIN " t " ON " condition))
@@ -39,15 +40,23 @@
 
 (fn m.insert [self what v]
   (let [sql (.. "INSERT INTO " what " VALUES (" v ");")]
-    (print sql)
-    (print :insert (self.connection:exec sql))))
+    (print :INSERT sql)
+    (case (self.connection:exec sql)
+      0 nil
+      err {:errcode err :errmsg (self.connection:errmsg)})))
 
 (fn m.update [self t query condition]
   (let [sql (.. "UPDATE " t " SET " query " WHERE " condition ";")]
-    (self.connection:exec sql)))
+    (print :UPDATE sql)
+    (case (self.connection:exec sql)
+      0 nil
+      err {:errcode err :errmsg (self.connection:errmsg)})))
 
 (fn m.delete [self t condition]
   (let [sql (.. "DELETE FROM " t " WHERE " condition ";")]
-    (self.connection:exec sql)))
+    (print :DELETE sql)
+    (case (self.connection:exec sql)
+      0 nil
+      err {:errcode err :errmsg (self.connection:errmsg)})))
 
 m

@@ -10,6 +10,20 @@
 "
       "Content-Length: " (length content) "\r\n" "\r\n" content))
 
+(fn response/redirect [status-code status location]
+  (.. "HTTP/1.1 " status-code " " status "\r\nLocation: " location "\r
+Content-Type: text/html; charset=utf-8\r
+"))
+
+(fn url-safe [str]
+  (if (= str nil)
+      nil
+      (-> str
+          (string.gsub "+" " ")
+          (string.gsub "%%(%x%x)"
+                       (fn [hex]
+                         (string.char (tonumber hex 16)))))))
+
 (fn response/html [status-code status content]
   (response status-code status :text/html content))
 
@@ -23,7 +37,7 @@
   (case ok
     true (response 200 :OK content-type content)
     false (do
-            (print err)
+            (print "ERROR READING STYKES" file-path err)
             (http/errors.not-found))))
 
 (fn response/static [r path]
@@ -44,33 +58,39 @@
     m))
 
 (fn find-masked [original masked]
-  (var pattern (string.gsub masked "([%^%$%(%)%%%.%[%]%*%+%-%?])" "%%%1"))
-  (set pattern (string.gsub pattern "{[%w-_]+}" "(.-)"))
+  (var pattern (string.gsub masked "{[%w_-]+}" "\000CARD\000"))
+  (set pattern (string.gsub pattern "([%^%$%(%)%%%.%[%]%*%+%-%?])" "%%%1"))
+  (set pattern (string.gsub pattern "\000CARD\000" "(.-)"))
   (set pattern (.. "^" pattern "$"))
   [(string.match original pattern)])
 
 (fn walk-url [routes url path-params]
   (let [[path & rest] url]
     (case [(. routes path) rest]
-      [route [nil]] (. route :handler)
+      [route [nil]] [(. route :handler) path-params]
       [route & [rest]] (walk-url route rest path-params)
       [nil _] (accumulate [found nil r _ (pairs routes)]
-                (or found
+                (or found ;; When the we hit the route key and it has wildcards
                     (when (and (= (r:sub -1 -1) "/")
                                (not= (length (. routes r :wildcards)) 0))
-                      (view :found (. routes r :wildcards))
+                      ;; Try to match current path to our route
                       (let [m (find-masked path r)
                             wildcards (. routes r :wildcards)]
                         (when (= (length m) (length wildcards))
-                          (collect [i card (ipairs wildcards) &into path-params]
-                            (values (card:sub 2 -2) (. m i)))
-                          (walk-url routes [r (table.unpack rest)] path-params)))))))))
+                          (let [local-params (collect [k v (pairs path-params)]
+                                               (values k v))]
+                            (each [i card (ipairs wildcards)]
+                              (tset local-params (card:sub 2 -2) (. m i)))
+                            ;; check this route (r) again with the rest
+                            (walk-url routes [r (table.unpack rest)]
+                                      local-params))))))))))
 
 (fn build-route [r url handler]
   (case url
-    [key nil] (do
+    [key nil] (let [wildcards (find-wildcards key)]
                 (when (not (. r key)) (set (. r key) {}))
-                (set (. r key) {:wildcards (find-wildcards key) : handler}))
+                (set (. r key :wildcards) wildcards)
+                (set (. r key :handler) handler))
     [key & rest] (let [wildcards (find-wildcards key)]
                    (when (not (. r key)) (set (. r key) {}))
                    (set (. r key :wildcards) wildcards)
@@ -99,17 +119,18 @@
         (let [[k v] (split item "=")] (values k v))))))
 
 (fn handle-request [r req]
-  (print :resolving)
   (let [[method path] [(. req :method) (. req :path)]
         url (split path "/")
         routes (. r.routes method)]
     (set req.form (try-read-body (. req :body)))
     (if (and (= method :GET) (string.match path r.static-url))
         (response/static r path)
-        (if routes (let [params {}]
-                     (or (let [handler (walk-url routes url params)]
-                           (and handler (handler req params)))
-                         (http/errors.not-found)))
+        (if routes
+            (let [result (walk-url routes url {})]
+              (view :result result)
+              (case result
+                [handler params] (handler req params)
+                _ (http/errors.not-found)))
             (http/errors.method-not-allowed)))))
 
 {:routes {}
@@ -122,4 +143,6 @@
  : response/html
  : response/template
  : view
- : split}
+ : split
+ : response/redirect
+ : url-safe}
