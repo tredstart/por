@@ -21,9 +21,11 @@
 
 (fn response/redirect [status-code status location]
   "Generic redirect. Same as `response`."
-  (.. "HTTP/1.1 " status-code " " status "\r\nLocation: " location "\r
-Content-Type: text/html; charset=utf-8\r
-"))
+  (.. "HTTP/1.1 " status-code " " status "\r\n"
+      "Location: " location "\r\n"
+      "Content-Type: text/html; charset=utf-8\r\n"
+      "Content-Length: 0\r\n"
+      "\r\n"))
 
 (fn safe [str]
   "Unescaping the string."
