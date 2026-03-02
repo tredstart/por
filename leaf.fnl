@@ -24,6 +24,7 @@
  :link (fn [?attrs ...] (tag :link true ?attrs ...))
  :style (fn [?attrs ...] (tag :style false ?attrs ...))
  :script (fn [?attrs ...] (tag :script false ?attrs ...))
+ :noscript (fn [?attrs ...] (tag :noscript false ?attrs ...))
  :div (fn [?attrs ...] (tag :div false ?attrs ...))
  :span (fn [?attrs ...] (tag :span false ?attrs ...))
  :p (fn [?attrs ...] (tag :p false ?attrs ...))
