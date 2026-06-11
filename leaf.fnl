@@ -76,5 +76,7 @@
  :svg (fn [?attrs ...] (tag :svg false ?attrs ...))
  :path (fn [?attrs ...] (tag :path true ?attrs ...))
  :g (fn [?attrs ...] (tag :g false ?attrs ...))
- :iframe (fn [?attrs ...] (tag :iframe false ?attrs ...))
- : tag}
+  :iframe (fn [?attrs ...] (tag :iframe false ?attrs ...))
+  :details (fn [?attrs ...] (tag :details false ?attrs ...))
+  :summary (fn [?attrs ...] (tag :summary false ?attrs ...))
+  : tag}
